@@ -21,7 +21,8 @@ import java.util.*;
 public class CodeSplitterLambda implements RequestHandler<Map<String, Object>, Map<String, Object>> {
     
 	// Smaller chunks to reduce Bedrock processing time
-	private static final int MAX_CHUNK_SIZE = Integer.parseInt(System.getenv().getOrDefault("MAX_CHUNK_SIZE", "20000"));
+	private static final int MAX_CHUNK_SIZE = Integer.parseInt(System.getenv().getOrDefault("MAX_CHUNK_SIZE", "50000"));
+    private static final int MAX_CHUNKS = Integer.parseInt(System.getenv().getOrDefault("MAX_CHUNKS", "10"));
     private static final String S3_BUCKET_NAME = System.getenv().getOrDefault("S3_BUCKET_NAME", "smartcode-uploads");
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AmazonS3 s3Client;
@@ -127,6 +128,21 @@ public class CodeSplitterLambda implements RequestHandler<Map<String, Object>, M
     private boolean shouldChunk(String code) {
         return code.length() > MAX_CHUNK_SIZE;
     }
+
+    /**
+     * Calculate optimal chunk size based on code length
+     */
+    private int calculateOptimalChunkSize(String code) {
+        if (code.length() <= MAX_CHUNK_SIZE) {
+            return MAX_CHUNK_SIZE;
+        }
+        
+        // Calculate chunk size to stay within MAX_CHUNKS limit
+        int idealChunkSize = (int) Math.ceil((double) code.length() / MAX_CHUNKS);
+        
+        // Use the larger of MAX_CHUNK_SIZE or calculated size
+        return Math.max(MAX_CHUNK_SIZE, idealChunkSize);
+    }
     
     /**
      * Detect programming language from code content
@@ -156,6 +172,9 @@ public class CodeSplitterLambda implements RequestHandler<Map<String, Object>, M
         List<Map<String, Object>> chunks = new ArrayList<>();
         String[] lines = code.split("\n", -1); // -1 to preserve empty lines
         
+        // Calculate optimal chunk size
+        int optimalChunkSize = calculateOptimalChunkSize(code);
+        
         StringBuilder currentChunk = new StringBuilder();
         int chunkIndex = 0;
         int lineNumber = 1;
@@ -173,7 +192,7 @@ public class CodeSplitterLambda implements RequestHandler<Map<String, Object>, M
             parenDepth += countChar(line, '(') - countChar(line, ')');
             
             // Check if adding this line would exceed chunk size
-            boolean wouldExceedSize = currentChunk.length() + line.length() + 1 > MAX_CHUNK_SIZE;
+            boolean wouldExceedSize = currentChunk.length() + line.length() + 1 > optimalChunkSize;
             boolean hasContent = currentChunk.length() > 0;
             boolean atStructuralBoundary = braceDepth == 0 && parenDepth == 0;
             
@@ -230,6 +249,10 @@ public class CodeSplitterLambda implements RequestHandler<Map<String, Object>, M
         chunk.put("endLine", endLine);
         chunk.put("size", code.length());
         chunk.put("lineCount", endLine - startLine + 1);
+        
+        // Add stagger delay hint for Step Functions
+        chunk.put("suggestedDelay", index * 12); // 12 seconds per chunk
+        
         return chunk;
     }
     
