@@ -20,7 +20,8 @@ import java.util.*;
  */
 public class CodeSplitterLambda implements RequestHandler<Map<String, Object>, Map<String, Object>> {
     
-    private static final int MAX_CHUNK_SIZE = Integer.parseInt(System.getenv().getOrDefault("MAX_CHUNK_SIZE", "30000"));
+	// Smaller chunks to reduce Bedrock processing time
+	private static final int MAX_CHUNK_SIZE = Integer.parseInt(System.getenv().getOrDefault("MAX_CHUNK_SIZE", "20000"));
     private static final String S3_BUCKET_NAME = System.getenv().getOrDefault("S3_BUCKET_NAME", "smartcode-uploads");
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AmazonS3 s3Client;
