@@ -75,7 +75,7 @@ public class CodeSplitterLambda implements RequestHandler<Map<String, Object>, M
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("processedAt", new Date().toString());
             metadata.put("maxChunkSize", MAX_CHUNK_SIZE);
-            metadata.put("lambdaRequestId", context.getRequestId());
+            metadata.put("lambdaRequestId", context.getAwsRequestId());
             result.put("metadata", metadata);
             
             return result;
